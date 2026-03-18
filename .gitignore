@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.mp3
+*.wav
+*.m4a
+*.log
+.DS_Store
+expected_output.json
