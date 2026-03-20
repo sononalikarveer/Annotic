@@ -1,16 +1,9 @@
 import json
 import os
-
-def format_time(seconds_float):
-    """ Converts float seconds into requested 0:00:00.000000 format if necessary, though json wants pure strings """
-    h = int(seconds_float // 3600)
-    m = int((seconds_float % 3600) // 60)
-    s = int(seconds_float % 60)
-    ms = int(round((seconds_float % 1) * 1e6))
-    return f"{h}:{m:02d}:{s:02d}.{ms:06d}"
+from transcript_rules import is_silence, format_silence, apply_word_rules, format_time
 
 def run():
-    print("\\n[Step 4] Categorizing Data from Transcripts...")
+    print("\\n[Step 4] Categorizing Data from Transcripts using External Rule Engine...")
     
     if not os.path.exists("raw_transcripts.json"):
         print("[!] raw_transcripts.json not found. Did you run Step 3?")
@@ -31,28 +24,27 @@ def run():
             continue
             
         # Rule 11: Silence Block for gaps >= 2 seconds
-        if start - last_word_end > 2.0 and last_word_end > 0:
+        if is_silence(start, last_word_end):
             final_segments.append({
                 "start": last_word_end,
                 "end": start,
                 "start_fmt": format_time(last_word_end),
                 "end_fmt": format_time(start),
-                "text": "<SIL></SIL>",
-                "Transcription": ["<SIL></SIL>"]
+                "text": format_silence(),
+                "Transcription": [format_silence()]
             })
             
-        # Rule 12: Filler Tagging
-        if word.lower() in ["ah", "uh", "um", "hmm", "er"]:
-            word = f"<FIL>{word}</FIL>"
-            
-        # Enforce exactly one word per block
+        # Rules 1, 2, 4, 5, 9, 12, 13, 14, 15: Apply word-level taxonomic rules
+        processed_word = apply_word_rules(word)
+        
+        # Enforce exactly one word per block (Rules 6 & 10)
         final_segments.append({
             "start": start,
             "end": end,
             "start_fmt": format_time(start),
             "end_fmt": format_time(end),
-            "text": word,
-            "Transcription": [word]
+            "text": processed_word,
+            "Transcription": [processed_word]
         })
         
         last_word_end = end

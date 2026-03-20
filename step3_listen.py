@@ -17,7 +17,7 @@ def run():
         "target_audio.mp3", 
         vad_filter=False, 
         word_timestamps=True,
-        initial_prompt="This is an English recording. Please transcribe every single word exactly as it is spoken."
+        initial_prompt="Transcribe the entire audio exactly as it is spoken verbatim. Include all extra words, incorrect mispronunciations, repetitions, stammering (e.g., 'ब ब बच्चा' or 'च'), and filler sounds ('आ', 'अ', 'ah', 'um'). Do not clean up or correct the speech. This may contain Hindi and English words."
     )
     
     print(f"Detected language '{info.language}' with probability {info.language_probability}")
