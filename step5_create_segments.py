@@ -22,43 +22,48 @@ async def run():
                     break
             if target_page: break
             
-        print("CRITICAL INSTRUCTION: Ensure the Timeline Scale slider is zoomed completely OUT so segments don't overlap!")
-        print("Waiting 5 seconds for visual confirmation...")
-        await asyncio.sleep(5)
+        print("Will attempt to keep Timeline Scale at minimum for every segment...")
         
-        rect = await target_page.locator('canvas').first.bounding_box()
-        if not rect:
-            print("Canvas not found!")
-            return
-            
-        canvas_width = rect['width']
-        canvas_x = rect['x']
-        y_coord = rect['y'] + (rect['height'] / 2.0)
-        
-        # Audio length to configure pixels-per-second ratio
-        total_duration = await target_page.evaluate("document.getElementById('audio-panel').duration")
-        if not total_duration:
-            print("Could not evaluate audio duration.")
-            return
-            
-        pixels_per_second = canvas_width / total_duration
-        print(f"Drawing bounds: {canvas_width}px over {total_duration}s -> Ratio: {pixels_per_second:.2f}px/sec")
-        
-        # Iteratively Shift-Drag original logic as requested by user
-        prev_end_x = -9999
+        prev_end_time_sec = -9999.0
         for index, seg in enumerate(segments):
-            base_start = (seg['start'] * pixels_per_second) + canvas_x
-            base_end = (seg['end'] * pixels_per_second) + canvas_x
+            # 1. Reset timeline scale to prevent auto-zoom drift on each segment creation
+            try:
+                sliders = await target_page.locator('input[type="range"]').all()
+                if sliders:
+                    await sliders[0].evaluate('el => { el.value = el.min || 0; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); }')
+            except Exception: pass
             
-            # 1. Enforce a strict minimum 4-pixel gap from the trailing edge of the previous block
-            start_x = max(base_start, prev_end_x + 4)
+            # Wait a moment for UI to settle the zoom level
+            await asyncio.sleep(0.5)
             
-            # 2. Enforce a strict minimum 4-pixel width for the physical block so Annotic doesn't discard it as 'too small'
-            end_x = max(base_end, start_x + 4)
+            # 2. Recalculate coordinates per segment dynamically
+            rect = await target_page.locator('canvas').first.bounding_box()
+            if not rect:
+                print("Canvas not found! Skipping...")
+                continue
+                
+            canvas_width = rect['width']
+            canvas_x = rect['x']
+            y_coord = rect['y'] + (rect['height'] / 2.0)
             
-            prev_end_x = end_x
+            total_duration = await target_page.evaluate("document.getElementById('audio-panel').duration")
+            if not total_duration:
+                print("Could not get audio duration.")
+                continue
+                
+            pixels_per_second = canvas_width / total_duration
+            gap_seconds = 4.0 / pixels_per_second
             
-            print(f"-> Drawing Segment {index+1}/{len(segments)} at X:[{start_x:.1f} to {end_x:.1f}]")
+            # 3. Enforce 4-pixel gap/width in time-domain so scrolling doesn't corrupt it
+            start_time = max(seg['start'], prev_end_time_sec + gap_seconds)
+            end_time = max(seg['end'], start_time + gap_seconds)
+            
+            prev_end_time_sec = end_time
+            
+            start_x = (start_time * pixels_per_second) + canvas_x
+            end_x = (end_time * pixels_per_second) + canvas_x
+            
+            print(f"-> Drawing Segment {index+1}/{len(segments)} from {start_time:.2f}s to {end_time:.2f}s (X:[{start_x:.1f} to {end_x:.1f}])")
             
             try:
                 # Press Escape to guarantee any previously active DOM region is fully deselected

@@ -34,9 +34,10 @@ async def run():
                         await asyncio.sleep(0.2)
                         
                         # Now that it's focused, grab the Trash button specific to this block
-                        trash = block.locator('button[aria-label*="Delete" i], svg[data-icon="trash"]').first
-                        if await trash.count() > 0 and await trash.is_visible():
-                            await trash.click(timeout=1000)
+                        trash = block.locator('button[aria-label*="Delete" i]').first
+                        if await trash.count() > 0:
+                            await block.hover() # Hover to reveal the button if it's hidden
+                            await trash.click(timeout=1000, force=True)
                             cleared_count += 1
                             deleted_in_pass = True
                             await asyncio.sleep(0.5)

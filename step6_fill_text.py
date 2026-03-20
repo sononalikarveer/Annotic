@@ -24,31 +24,34 @@ async def run():
             
         print(f"Targeting: {target_page.url}")
         
-        # Original text-fill functionality restored directly from Git log history Request
-        textareas = await target_page.locator('textarea.auto-resizable-textarea').all()
-        print(f"Discovered {len(textareas)} physical text boxes on screen for {len(segments)} segments.")
-        
         filled = 0
         for index, seg in enumerate(segments):
             text = seg["text"]
             try:
-                if textareas:
-                    # Accommodate the occasional 'sub_0' generic project block at index 0
-                    target_index = min(index + 1, len(textareas) - 1)
-                    target_input = textareas[target_index]
+                # Re-query all currently rendered blocks to survive Virtual DOM shifting
+                blocks = await target_page.locator('div[id^="sub_"]').all()
+                if not blocks:
+                    print("  [!] No blocks found on screen.")
+                    break
                     
-                    # Scroll into view so the Virtual DOM doesn't collapse it before the text arrives
-                    await target_input.scroll_into_view_if_needed()
-                    await asyncio.sleep(0.1)
-                    
-                    # Instead of flat .fill, emulate keyboard typing
-                    await target_input.click(timeout=1000)
+                # We need the physical container to sort by Y. Or just trust DOM order.
+                # Assuming DOM order matches chronological order (it almost always does for React appending)
+                target_block_index = min(index + 1 if len(blocks) > index else len(blocks) - 1, len(blocks) - 1)
+                
+                target_block = blocks[target_block_index]
+                await target_block.scroll_into_view_if_needed()
+                await asyncio.sleep(0.1)
+                
+                # Now grab the textarea inside this specific block
+                ta = target_block.locator('textarea').first
+                if await ta.count() > 0:
+                    await ta.click(timeout=1000)
                     await target_page.keyboard.press("Control+A")
                     await target_page.keyboard.press("Backspace")
                     await target_page.keyboard.type(text, delay=10)
                     await target_page.keyboard.press("Escape")
                     
-                    print(f"  [+] Filled Segment {index+1}: {text}")
+                    print(f"  [+] Filled Segment {index+1}/{len(segments)}: {text}")
                     filled += 1
                 else:
                     print(f"  [!] Missing physical textbox layout for segment {index+1}.")
