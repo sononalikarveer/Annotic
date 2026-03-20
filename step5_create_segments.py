@@ -26,12 +26,16 @@ async def run():
         
         prev_end_time_sec = -9999.0
         for index, seg in enumerate(segments):
-            # 1. Reset timeline scale to prevent auto-zoom drift on each segment creation
+            # 1. Reset timeline scale to prevent auto-zoom drift using native mouse click on the left edge of the slider
             try:
-                sliders = await target_page.locator('input[type="range"]').all()
-                if sliders:
-                    await sliders[0].evaluate('el => { el.value = el.min || 0; el.dispatchEvent(new Event("input", {bubbles: true})); el.dispatchEvent(new Event("change", {bubbles: true})); }')
-            except Exception: pass
+                sliders = target_page.locator('input[type="range"]')
+                if await sliders.count() > 0:
+                    first_slider = sliders.first
+                    await first_slider.scroll_into_view_if_needed()
+                    # Click 2 pixels from the left edge of the slider bounding box to force 'min' zoom
+                    await first_slider.click(position={"x": 2, "y": 2}, force=True)
+            except Exception as e:
+                print(f"Slider reset failed: {e}")
             
             # Wait a moment for UI to settle the zoom level
             await asyncio.sleep(0.5)
