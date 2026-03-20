@@ -45,13 +45,24 @@ async def run():
         print(f"Drawing bounds: {canvas_width}px over {total_duration}s -> Ratio: {pixels_per_second:.2f}px/sec")
         
         # Iteratively Shift-Drag original logic as requested by user
+        prev_end_x = 0
         for index, seg in enumerate(segments):
             start_x = (seg['start'] * pixels_per_second) + canvas_x
             end_x = (seg['end'] * pixels_per_second) + canvas_x
             
+            # Enforce exactly 2 pixels of physical spacing between the trailing edge and the new starting edge
+            if index > 0 and start_x <= prev_end_x + 2:
+                start_x = prev_end_x + 2
+                
+            prev_end_x = end_x
+            
             print(f"-> Drawing Segment {index+1}/{len(segments)} at X:[{start_x:.1f} to {end_x:.1f}]")
             
             try:
+                # Press Escape to guarantee any previously active DOM region is fully deselected
+                await target_page.keyboard.press("Escape")
+                await asyncio.sleep(0.05)
+                
                 await target_page.mouse.move(start_x, y_coord)
                 await target_page.keyboard.down("Shift")
                 

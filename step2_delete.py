@@ -18,30 +18,35 @@ async def run():
                 return
                 
             cleared_count = 0
+            
             while True:
-                # Direct check for Trash icon if visible
-                trash_btns = await target_page.locator('svg[data-icon="trash"]').all()
-                if not trash_btns:
-                    # Focus top block to reveal dynamic buttons
-                    blocks = await target_page.locator('div[id^="sub_"]').all()
-                    if blocks:
-                        try:
-                            await blocks[0].scroll_into_view_if_needed()
-                            await blocks[0].click(timeout=1000)
-                            await asyncio.sleep(0.3)
-                        except: pass
-                    else:
-                        break # Canvas is completely empty!
-                        
-                # Re-fetch after hover
-                trash_btns = await target_page.locator('svg[data-icon="trash"]').all()
-                if trash_btns:
+                blocks = await target_page.locator('div[id^="sub_"]').all()
+                if len(blocks) == 0:
+                    break
+                    
+                deleted_in_pass = False
+                
+                # Iterate backward to safely delete from the bottom up without shifting DOM indexes
+                for block in reversed(blocks):
                     try:
-                        await trash_btns[0].locator('..').click(timeout=1000)
-                        cleared_count += 1
-                        await asyncio.sleep(0.3)
-                    except: break
-                else: break
+                        await block.scroll_into_view_if_needed()
+                        await block.click(timeout=1000)
+                        await asyncio.sleep(0.2)
+                        
+                        # Now that it's focused, grab the Trash button specific to this block
+                        trash = block.locator('button[aria-label*="Delete" i], svg[data-icon="trash"]').first
+                        if await trash.count() > 0 and await trash.is_visible():
+                            await trash.click(timeout=1000)
+                            cleared_count += 1
+                            deleted_in_pass = True
+                            await asyncio.sleep(0.5)
+                            break # Break the for loop to re-fetch the clean DOM in the while loop
+                    except Exception as e:
+                        pass
+                        
+                if not deleted_in_pass:
+                    # If we made a full pass and deleted nothing, stop immediately to prevent infinite loops
+                    break
 
             print(f"[✓] Canvas cleared. Deleted {cleared_count} components.")
             
